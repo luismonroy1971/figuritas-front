@@ -82,7 +82,7 @@ export default function SharedAlbumView({
         }
 
         setPayload(response);
-        setActiveTabKey(response.tabs[0]?.key ?? null);
+        setActiveTabKey("all");
       } catch (requestError) {
         if (!cancelled) {
           setError(extractMessage(requestError));
@@ -108,10 +108,31 @@ export default function SharedAlbumView({
     return () => window.clearTimeout(timer);
   }, [copied]);
 
-  const activeTab = useMemo(
-    () => payload?.tabs.find((tab) => tab.key === activeTabKey) ?? payload?.tabs[0] ?? null,
-    [activeTabKey, payload],
+  const allTab = useMemo<SharedTab | null>(() => {
+    if (!payload) {
+      return null;
+    }
+
+    return {
+      key: "all",
+      label: "Todo el album",
+      count: payload.tabs.reduce((total, tab) => total + tab.count, 0),
+      stickers: payload.tabs.flatMap((tab) => tab.stickers),
+    };
+  }, [payload]);
+
+  const availableTabs = useMemo(
+    () => (allTab ? [allTab, ...payload?.tabs ?? []] : payload?.tabs ?? []),
+    [allTab, payload],
   );
+
+  const activeTab = useMemo(() => {
+    if (!availableTabs.length) {
+      return null;
+    }
+
+    return availableTabs.find((tab) => tab.key === activeTabKey) ?? availableTabs[0];
+  }, [activeTabKey, availableTabs]);
 
   const missingStickers = useMemo(
     () => activeTab?.stickers.filter((sticker) => sticker.state.status === "missing") ?? [],
@@ -369,11 +390,11 @@ export default function SharedAlbumView({
 
         <section className="rounded-[32px] bg-white p-6 shadow-sm">
           <div className="flex flex-wrap gap-2">
-            {payload.tabs.map((tab) => (
+            {availableTabs.map((tab) => (
               <button
                 key={tab.key}
                 className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                  (activeTab?.key ?? payload.tabs[0]?.key) === tab.key
+                  (activeTab?.key ?? availableTabs[0]?.key) === tab.key
                     ? "bg-slate-950 text-white"
                     : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                 }`}
