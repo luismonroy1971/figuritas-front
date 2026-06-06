@@ -1,5 +1,5 @@
 export const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000/api";
+  import.meta.env.VITE_API_URL ?? "/api";
 
 export class ApiError extends Error {
   status: number;
@@ -23,16 +23,24 @@ export async function apiFetch<T>(
   options: ApiOptions = {},
 ): Promise<T> {
   const { token, headers, body, ...rest } = options;
+  const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
 
   const response = await fetch(`${API_URL}${path}`, {
     ...rest,
     headers: {
       Accept: "application/json",
-      ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+      ...(body !== undefined && !isFormData
+        ? { "Content-Type": "application/json" }
+        : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...headers,
     },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    body:
+      body === undefined
+        ? undefined
+        : isFormData
+          ? body
+          : JSON.stringify(body),
     cache: "no-store",
   });
 

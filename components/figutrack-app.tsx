@@ -1,5 +1,3 @@
-"use client";
-
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import { API_URL, apiFetch, extractMessage } from "@/lib/api";
 
@@ -131,6 +129,29 @@ type Toast = {
   tone?: "success" | "error" | "info";
 };
 
+type CsvImportSummary = {
+  imported: number;
+  cleared: number;
+  skipped: number;
+  not_found_codes: string[];
+};
+
+type CsvImportResponse = {
+  message: string;
+  summary: CsvImportSummary;
+  progress: Progress;
+};
+
+type ShareLinkResponse = {
+  message: string;
+  share_key: string;
+  share_path: string;
+  album: {
+    id: number;
+    nombre: string;
+  };
+};
+
 type AlbumForm = {
   nombre: string;
   editorial: string;
@@ -198,6 +219,7 @@ export default function FiguTrackApp() {
   const [submittingAuth, setSubmittingAuth] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
+  const [importingCsv, setImportingCsv] = useState(false);
   const [loadingCatalog, setLoadingCatalog] = useState(false);
   const [loadingCollection, setLoadingCollection] = useState(false);
   const [loadingMatches, setLoadingMatches] = useState(false);
@@ -224,6 +246,14 @@ export default function FiguTrackApp() {
   const [bulkCantidad, setBulkCantidad] = useState("12");
   const [bulkCategoria, setBulkCategoria] = useState("General");
   const [bulkTipo, setBulkTipo] = useState("normal");
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [csvClearBefore, setCsvClearBefore] = useState(false);
+  const [csvInputKey, setCsvInputKey] = useState(0);
+  const [csvImportSummary, setCsvImportSummary] = useState<CsvImportSummary | null>(
+    null,
+  );
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [creatingShareLink, setCreatingShareLink] = useState(false);
   const [loginForm, setLoginForm] = useState({ identifier: "", password: "" });
   const [profileForm, setProfileForm] = useState({
     name: "",
@@ -275,6 +305,23 @@ export default function FiguTrackApp() {
     () => adminAlbums.find((album) => album.id === adminSelectedAlbumId) ?? null,
     [adminAlbums, adminSelectedAlbumId],
   );
+
+  const shareWhatsappUrl = useMemo(() => {
+    if (!shareUrl || !control) {
+      return null;
+    }
+
+    const text = `Te comparto mi lista de ${control.album.nombre} en FiguTrack. Me faltan ${control.progress.missing} figuritas y tengo ${control.progress.repeated} repetidas para intercambiar. ${shareUrl}`;
+    return `https://wa.me/?text=${encodeURIComponent(text)}`;
+  }, [control, shareUrl]);
+
+  const shareQrUrl = useMemo(() => {
+    if (!shareUrl) {
+      return null;
+    }
+
+    return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(shareUrl)}`;
+  }, [shareUrl]);
 
   function notify(
     title: string,
@@ -469,6 +516,7 @@ export default function FiguTrackApp() {
       );
       setControl(response);
       setActiveTabKey(response.tabs[0]?.key ?? null);
+      setShareUrl(null);
     } finally {
       setLoadingCollection(false);
     }
@@ -626,6 +674,7 @@ export default function FiguTrackApp() {
     setMatches([]);
     setContact(null);
     setSelectedAlbumId(null);
+    setShareUrl(null);
     setAdminAlbums([]);
     setAdminStickers([]);
     setAdminStats(null);
@@ -662,6 +711,7 @@ export default function FiguTrackApp() {
     setSelectedAlbumId(albumId);
     setView("coleccion");
     setMatches([]);
+    setShareUrl(null);
 
     try {
       await loadControl(token, albumId);
@@ -796,6 +846,122 @@ export default function FiguTrackApp() {
       setContact(response);
     } catch (error) {
       notify("No se pudo obtener el contacto", extractMessage(error), "error");
+    }
+  }
+
+  async function handleImportCsv(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!token || !selectedAlbumId || !csvFile) {
+      return;
+    }
+
+    setImportingCsv(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("archivo", csvFile);
+      formData.append("limpiar_antes", csvClearBefore ? "1" : "0");
+
+      const response = await apiFetch<CsvImportResponse>(
+        `/mis-albumes/${selectedAlbumId}/importar-csv`,
+        {
+          method: "POST",
+          token,
+          body: formData,
+        },
+      );
+
+      setCsvImportSummary(response.summary);
+      await loadControl(token, selectedAlbumId);
+      setMyAlbums((current) =>
+        current.map((album) =>
+          album.id === selectedAlbumId
+            ? { ...album, progress: response.progress }
+            : album,
+        ),
+      );
+      setCsvFile(null);
+      setCsvClearBefore(false);
+      setCsvInputKey((current) => current + 1);
+
+      notify(
+        "Importación completada",
+        `${response.summary.imported} figuritas actualizadas desde el CSV.`,
+        "success",
+      );
+    } catch (error) {
+      notify("No se pudo importar el CSV", extractMessage(error), "error");
+    } finally {
+      setImportingCsv(false);
+    }
+  }
+
+  function handleDownloadCsvTemplate() {
+    if (!control) {
+      return;
+    }
+
+    const rows = [
+      ["codigo", "tiene", "repetidas"],
+      ...control.tabs.flatMap((tab) =>
+        tab.stickers.map((sticker) => [sticker.codigo, "", ""]),
+      ),
+    ];
+
+    const csvContent = rows
+      .map((row) => row.map((value) => csvEscape(value)).join(","))
+      .join("\r\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const albumSlug = control.album.nombre
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+
+    link.href = url;
+    link.download = `plantilla-${albumSlug || "album"}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  }
+
+  async function handleCreateShareLink() {
+    if (!token || !selectedAlbumId) {
+      return;
+    }
+
+    setCreatingShareLink(true);
+
+    try {
+      const response = await apiFetch<ShareLinkResponse>(
+        `/mis-albumes/${selectedAlbumId}/compartir`,
+        {
+          token,
+        },
+      );
+
+      const nextShareUrl = new URL(response.share_path, window.location.origin).toString();
+      setShareUrl(nextShareUrl);
+
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(nextShareUrl);
+      }
+
+      notify(
+        "Enlace listo para compartir",
+        "La URL pública se copió al portapapeles.",
+        "success",
+      );
+    } catch (error) {
+      notify("No se pudo generar el enlace", extractMessage(error), "error");
+    } finally {
+      setCreatingShareLink(false);
     }
   }
 
@@ -1623,6 +1789,192 @@ export default function FiguTrackApp() {
 
                     <ProgressBar progress={control.progress.percentage} tall />
 
+                    <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-5">
+                      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+                        <div className="space-y-2">
+                          <div className="text-lg font-semibold text-slate-950">
+                            Importar desde CSV
+                          </div>
+                          <p className="max-w-2xl text-sm text-slate-600">
+                            Sube un archivo con una de estas variantes:
+                            <span className="font-mono text-xs text-slate-800">
+                              {" "}
+                              `codigo`
+                            </span>
+                            ,
+                            <span className="font-mono text-xs text-slate-800">
+                              {" "}
+                              `codigo,repetidas`
+                            </span>
+                            {" "}o
+                            <span className="font-mono text-xs text-slate-800">
+                              {" "}
+                              `codigo,tiene,repetidas`
+                            </span>
+                            .
+                          </p>
+                          <p className="font-mono text-xs text-slate-500">
+                            Ejemplos: `FWC001` | `FWC002,2` | `FWC003,si,1`
+                          </p>
+                          <button
+                            className={secondaryButtonClass}
+                            onClick={handleDownloadCsvTemplate}
+                            type="button"
+                          >
+                            Descargar plantilla CSV
+                          </button>
+                        </div>
+
+                        <form
+                          className="flex w-full max-w-xl flex-col gap-3"
+                          onSubmit={handleImportCsv}
+                        >
+                          <input
+                            key={csvInputKey}
+                            accept=".csv,text/csv"
+                            className={`${lightInputClass} file:mr-4 file:rounded-xl file:border-0 file:bg-slate-950 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-slate-800`}
+                            onChange={(event) =>
+                              setCsvFile(event.target.files?.[0] ?? null)
+                            }
+                            type="file"
+                          />
+                          <label className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                            <input
+                              checked={csvClearBefore}
+                              className="mt-1 h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                              onChange={(event) => setCsvClearBefore(event.target.checked)}
+                              type="checkbox"
+                            />
+                            <span>
+                              Eliminar antes de importar las figuritas guardadas del usuario
+                              activo en este álbum.
+                            </span>
+                          </label>
+                          <div className="flex flex-col gap-3 sm:flex-row">
+                            <button
+                              className={primaryButtonClass}
+                              disabled={importingCsv || !csvFile}
+                              type="submit"
+                            >
+                              {importingCsv ? "Importando..." : "Importar CSV"}
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+
+                      {csvImportSummary ? (
+                        <div className="mt-4 grid gap-3 lg:grid-cols-4">
+                          <SummaryChip
+                            label="Actualizadas"
+                            value={csvImportSummary.imported}
+                          />
+                          <SummaryChip
+                            label="Limpiadas"
+                            value={csvImportSummary.cleared}
+                          />
+                          <SummaryChip
+                            label="Saltadas"
+                            value={csvImportSummary.skipped}
+                          />
+                          <SummaryChip
+                            label="No encontradas"
+                            value={csvImportSummary.not_found_codes.length}
+                          />
+                          {csvImportSummary.not_found_codes.length ? (
+                            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 lg:col-span-4">
+                              Códigos no encontrados:{" "}
+                              <span className="font-mono text-xs">
+                                {csvImportSummary.not_found_codes.slice(0, 12).join(", ")}
+                              </span>
+                              {csvImportSummary.not_found_codes.length > 12
+                                ? " ..."
+                                : ""}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+
+                    <div className="rounded-3xl border border-slate-200 bg-white p-5">
+                      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                        <div className="space-y-2">
+                          <div className="text-lg font-semibold text-slate-950">
+                            Compartir lista pública
+                          </div>
+                          <p className="max-w-2xl text-sm text-slate-600">
+                            Genera una pantalla para compartir con otros usuarios las figuritas
+                            que te faltan y las que tienes repetidas en este álbum.
+                          </p>
+                        </div>
+
+                        <div className="flex flex-wrap gap-3">
+                          <button
+                            className={primaryButtonClass}
+                            disabled={creatingShareLink}
+                            onClick={handleCreateShareLink}
+                            type="button"
+                          >
+                            {creatingShareLink ? "Generando..." : "Copiar enlace compartido"}
+                          </button>
+                          {shareUrl ? (
+                            <a
+                              className={secondaryButtonClass}
+                              href={shareUrl}
+                              rel="noreferrer"
+                              target="_blank"
+                            >
+                              Abrir vista compartida
+                            </a>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      {shareUrl ? (
+                        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
+                          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                            <div className="text-xs uppercase tracking-[0.24em] text-slate-400">
+                              Enlace público
+                            </div>
+                            <div className="mt-2 break-all font-mono text-sm text-slate-700">
+                              {shareUrl}
+                            </div>
+                            <div className="mt-4 flex flex-wrap gap-3">
+                              {shareWhatsappUrl ? (
+                                <a
+                                  className="inline-flex items-center justify-center rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700"
+                                  href={shareWhatsappUrl}
+                                  rel="noreferrer"
+                                  target="_blank"
+                                >
+                                  Enviar por WhatsApp
+                                </a>
+                              ) : null}
+                              <a
+                                className={secondaryButtonClass}
+                                href={shareUrl}
+                                rel="noreferrer"
+                                target="_blank"
+                              >
+                                Ver pantalla pública
+                              </a>
+                            </div>
+                          </div>
+                          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                            <div className="text-xs uppercase tracking-[0.24em] text-slate-400">
+                              QR del enlace
+                            </div>
+                            {shareQrUrl ? (
+                              <img
+                                alt="Código QR del enlace compartido"
+                                className="mx-auto mt-3 h-40 w-40 rounded-2xl border border-slate-200 bg-white p-2"
+                                src={shareQrUrl}
+                              />
+                            ) : null}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+
                     <div className="flex flex-wrap gap-2">
                       {(Object.entries(control.filters) as Array<
                         [FilterKey, string]
@@ -2321,6 +2673,25 @@ function MetricChip({ label, value }: { label: string; value: number }) {
       <div className="mt-1 text-xl font-semibold">{value}</div>
     </div>
   );
+}
+
+function SummaryChip({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+      <div className="text-xs uppercase tracking-[0.24em] text-slate-400">
+        {label}
+      </div>
+      <div className="mt-1 text-2xl font-semibold text-slate-950">{value}</div>
+    </div>
+  );
+}
+
+function csvEscape(value: string) {
+  if (/[",\r\n]/.test(value)) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+
+  return value;
 }
 
 function AlbumShowcaseCard({
