@@ -318,6 +318,9 @@ export default function SharedAlbumView({
               <p className="mt-2 text-sm text-slate-500">
                 Envía este enlace a otros coleccionistas para que vean qué le falta y qué tiene repetido.
               </p>
+              <p className="mt-2 text-xs font-medium uppercase tracking-[0.18em] text-emerald-600">
+                Es una vista pública: cualquiera con la URL puede abrirla.
+              </p>
             </div>
             <div className="flex flex-wrap gap-3">
               <button

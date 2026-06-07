@@ -1905,6 +1905,9 @@ export default function FiguTrackApp() {
                             Genera una pantalla para compartir con otros usuarios las figuritas
                             que te faltan y las que tienes repetidas en este álbum.
                           </p>
+                          <p className="text-xs font-medium uppercase tracking-[0.18em] text-emerald-600">
+                            Cualquiera con este enlace puede verlo sin iniciar sesión.
+                          </p>
                         </div>
 
                         <div className="flex flex-wrap gap-3">

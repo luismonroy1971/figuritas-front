@@ -53,6 +53,14 @@ export async function apiFetch<T>(
     throw new ApiError(extractMessage(payload), response.status, payload);
   }
 
+  if (!contentType.includes("application/json")) {
+    throw new ApiError(
+      "La API respondio HTML en lugar de JSON. Revisa el hosting, la ruta /api y el archivo .htaccess.",
+      response.status,
+      payload,
+    );
+  }
+
   return payload as T;
 }
 
