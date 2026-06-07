@@ -231,6 +231,7 @@ export default function FiguTrackApp() {
   const [control, setControl] = useState<ControlPayload | null>(null);
   const [filterKey, setFilterKey] = useState<FilterKey>("all");
   const [activeTabKey, setActiveTabKey] = useState<string | null>(null);
+  const [stickerSearch, setStickerSearch] = useState("");
   const [matches, setMatches] = useState<MatchItem[]>([]);
   const [contact, setContact] = useState<ContactPayload | null>(null);
   const [adminStats, setAdminStats] = useState<AdminStats | null>(null);
@@ -283,12 +284,34 @@ export default function FiguTrackApp() {
     [activeTabKey, control],
   );
 
-  const visibleStickers = useMemo(() => {
-    if (!activeTab) {
+  const searchableStickers = useMemo(() => {
+    if (!control) {
       return [] as StickerItem[];
     }
 
-    return activeTab.stickers.filter((sticker) => {
+    const query = stickerSearch.trim();
+    if (query !== "") {
+      return control.tabs.flatMap((tab) => tab.stickers);
+    }
+
+    return activeTab?.stickers ?? [];
+  }, [activeTab, control, stickerSearch]);
+
+  const visibleStickers = useMemo(() => {
+    if (!searchableStickers.length) {
+      return [] as StickerItem[];
+    }
+
+    const normalizedSearch = stickerSearch.trim().toLowerCase();
+
+    return searchableStickers.filter((sticker) => {
+      if (
+        normalizedSearch &&
+        !sticker.codigo.toLowerCase().includes(normalizedSearch)
+      ) {
+        return false;
+      }
+
       if (filterKey === "missing") {
         return sticker.state.status === "missing";
       }
@@ -299,7 +322,7 @@ export default function FiguTrackApp() {
 
       return true;
     });
-  }, [activeTab, filterKey]);
+  }, [filterKey, searchableStickers, stickerSearch]);
 
   const selectedAdminAlbum = useMemo(
     () => adminAlbums.find((album) => album.id === adminSelectedAlbumId) ?? null,
@@ -2004,6 +2027,38 @@ export default function FiguTrackApp() {
                       </button>
                     </div>
 
+                    <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                        <div>
+                          <div className="text-sm font-semibold text-slate-950">
+                            Buscar por código
+                          </div>
+                          <p className="mt-1 text-sm text-slate-500">
+                            Escribe un texto como `MEX`, `FWC` o `BRA1` para filtrar figuritas
+                            por coincidencia en el código.
+                          </p>
+                        </div>
+                        <div className="flex w-full max-w-xl flex-col gap-3 sm:flex-row">
+                          <input
+                            className={lightInputClass}
+                            onChange={(event) => setStickerSearch(event.target.value)}
+                            placeholder="Ejemplo: MEX"
+                            type="search"
+                            value={stickerSearch}
+                          />
+                          {stickerSearch ? (
+                            <button
+                              className={secondaryButtonClass}
+                              onClick={() => setStickerSearch("")}
+                              type="button"
+                            >
+                              Limpiar
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="flex flex-wrap gap-2">
                       {control.tabs.map((tab) => (
                         <button
@@ -2022,7 +2077,11 @@ export default function FiguTrackApp() {
                     {visibleStickers.length === 0 ? (
                       <EmptyState
                         title="Nada que mostrar con este filtro"
-                        description="Cambia de tab o vuelve a ver todas las figuritas."
+                        description={
+                          stickerSearch
+                            ? "No hay figuritas cuyo código coincida con la búsqueda. Prueba con otro texto como MEX o FWC."
+                            : "Cambia de tab o vuelve a ver todas las figuritas."
+                        }
                       />
                     ) : (
                       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
