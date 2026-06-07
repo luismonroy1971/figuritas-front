@@ -365,11 +365,13 @@ export default function SharedAlbumView({
             <QuickSummaryCard
               emptyText="No hay faltantes registrados en el álbum completo."
               groups={allAlbumSummary.missing}
+              total={payload.progress.missing}
               tone="missing"
             />
             <QuickSummaryCard
               emptyText="No hay repetidas registradas en el álbum completo."
               groups={allAlbumSummary.repeated}
+              total={payload.progress.repeated}
               tone="repeated"
             />
           </div>
@@ -392,10 +394,12 @@ function QuickSummaryCard({
   groups,
   tone,
   emptyText,
+  total,
 }: {
   groups: QuickGroup[];
   tone: "missing" | "repeated";
   emptyText: string;
+  total: number;
 }) {
   return (
     <div
@@ -410,7 +414,7 @@ function QuickSummaryCard({
           <div className="text-xs uppercase tracking-[0.24em] text-slate-500">
             {tone === "missing" ? "Me faltan" : "Repetidas"}
           </div>
-          <div className="mt-2 text-2xl font-semibold text-slate-950">{groups.length}</div>
+          <div className="mt-2 text-2xl font-semibold text-slate-950">{total}</div>
         </div>
         <span
           className={`rounded-full px-3 py-1 text-xs font-semibold uppercase ${
