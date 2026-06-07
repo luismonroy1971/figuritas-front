@@ -25,6 +25,14 @@ type SharedTab = {
   stickers: SharedSticker[];
 };
 
+type QuickGroup = {
+  key: string;
+  shortCode: string;
+  emoji: string;
+  title: string;
+  numbers: string[];
+};
+
 type SharedAlbumPayload = {
   owner: {
     name: string;
@@ -57,7 +65,6 @@ export default function SharedAlbumView({
   albumId: number;
 }) {
   const [payload, setPayload] = useState<SharedAlbumPayload | null>(null);
-  const [activeTabKey, setActiveTabKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -82,7 +89,6 @@ export default function SharedAlbumView({
         }
 
         setPayload(response);
-        setActiveTabKey("all");
       } catch (requestError) {
         if (!cancelled) {
           setError(extractMessage(requestError));
@@ -121,27 +127,9 @@ export default function SharedAlbumView({
     };
   }, [payload]);
 
-  const availableTabs = useMemo(
-    () => (allTab ? [allTab, ...payload?.tabs ?? []] : payload?.tabs ?? []),
-    [allTab, payload],
-  );
-
-  const activeTab = useMemo(() => {
-    if (!availableTabs.length) {
-      return null;
-    }
-
-    return availableTabs.find((tab) => tab.key === activeTabKey) ?? availableTabs[0];
-  }, [activeTabKey, availableTabs]);
-
-  const missingStickers = useMemo(
-    () => activeTab?.stickers.filter((sticker) => sticker.state.status === "missing") ?? [],
-    [activeTab],
-  );
-
-  const repeatedStickers = useMemo(
-    () => activeTab?.stickers.filter((sticker) => sticker.state.status === "repeated") ?? [],
-    [activeTab],
+  const allAlbumSummary = useMemo(
+    () => buildQuickSummary(allTab?.stickers ?? []),
+    [allTab],
   );
 
   const shareText = useMemo(() => {
@@ -159,14 +147,6 @@ export default function SharedAlbumView({
 
     return `https://wa.me/?text=${encodeURIComponent(`${shareText} ${currentUrl}`)}`;
   }, [currentUrl, shareText]);
-
-  const qrImageUrl = useMemo(() => {
-    if (!currentUrl) {
-      return "";
-    }
-
-    return `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(currentUrl)}`;
-  }, [currentUrl]);
 
   async function handleCopyLink() {
     try {
@@ -264,7 +244,7 @@ export default function SharedAlbumView({
           <div className="grid gap-6 px-6 py-8 lg:grid-cols-[minmax(0,1fr)_320px] lg:px-8">
             <div>
               <div className="text-sm uppercase tracking-[0.24em] text-blue-200">
-                Lista compartida
+                Figuritas App - Lista
               </div>
               <h1 className="mt-3 text-3xl font-semibold">{payload.album.nombre}</h1>
               <p className="mt-3 max-w-2xl text-sm text-slate-300">
@@ -362,101 +342,36 @@ export default function SharedAlbumView({
           </div>
         </section>
 
-        <section className="print-hidden grid gap-6 rounded-[32px] bg-white p-6 shadow-sm lg:grid-cols-[minmax(0,1fr)_280px]">
-          <div>
-            <h2 className="text-2xl font-semibold text-slate-950">Enlace premium</h2>
-            <p className="mt-2 text-sm text-slate-500">
-              Comparte este enlace, envíalo por WhatsApp o deja que lo escaneen desde el QR.
-            </p>
-            <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div className="text-xs uppercase tracking-[0.24em] text-slate-400">
-                URL pública
-              </div>
-              <div className="mt-2 break-all font-mono text-sm text-slate-700">
-                {currentUrl}
-              </div>
-            </div>
-          </div>
-          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-            <div className="text-xs uppercase tracking-[0.24em] text-slate-400">
-              Código QR
-            </div>
-            {qrImageUrl ? (
-              <img
-                alt="Código QR del enlace compartido"
-                className="mx-auto mt-3 h-56 w-56 rounded-2xl border border-slate-200 bg-white p-3"
-                src={qrImageUrl}
-              />
-            ) : null}
-          </div>
-        </section>
-
         <section className="rounded-[32px] bg-white p-6 shadow-sm">
-          <div className="flex flex-wrap gap-2">
-            {availableTabs.map((tab) => (
-              <button
-                key={tab.key}
-                className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                  (activeTab?.key ?? availableTabs[0]?.key) === tab.key
-                    ? "bg-slate-950 text-white"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                }`}
-                onClick={() => setActiveTabKey(tab.key)}
-                type="button"
-              >
-                {tab.label} · {tab.count}
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <section className="grid gap-6 lg:grid-cols-2">
-          <div className="rounded-[32px] bg-white p-6 shadow-sm">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <h2 className="text-2xl font-semibold text-slate-950">Faltantes</h2>
-                <p className="mt-2 text-sm text-slate-500">
-                  Figuritas que aún necesita en {activeTab?.label ?? "esta categoría"}.
-                </p>
+          <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <div className="text-sm uppercase tracking-[0.24em] text-blue-600">
+                Lectura rápida
               </div>
-              <span className="rounded-full bg-rose-50 px-3 py-1 text-sm font-semibold text-rose-700">
-                {missingStickers.length}
-              </span>
+              <h2 className="mt-2 text-2xl font-semibold text-slate-950">
+                Usa {payload.album.nombre}
+              </h2>
+              <p className="mt-2 text-sm text-slate-500">
+                Resumen completo del álbum agrupado por selección y secciones especiales.
+              </p>
             </div>
-
-            {missingStickers.length === 0 ? (
-              <EmptyShareState text="No hay faltantes en esta categoría." />
-            ) : (
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                {missingStickers.map((sticker) => (
-                  <SharedStickerCard key={sticker.id} sticker={sticker} tone="missing" />
-                ))}
-              </div>
-            )}
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+              {payload.owner.name} comparte {payload.progress.missing} faltantes y{" "}
+              {payload.progress.repeated} repetidas
+            </div>
           </div>
 
-          <div className="rounded-[32px] bg-white p-6 shadow-sm">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <h2 className="text-2xl font-semibold text-slate-950">Repetidas</h2>
-                <p className="mt-2 text-sm text-slate-500">
-                  Figuritas disponibles para intercambiar en {activeTab?.label ?? "esta categoría"}.
-                </p>
-              </div>
-              <span className="rounded-full bg-amber-50 px-3 py-1 text-sm font-semibold text-amber-700">
-                {repeatedStickers.length}
-              </span>
-            </div>
-
-            {repeatedStickers.length === 0 ? (
-              <EmptyShareState text="No hay repetidas en esta categoría." />
-            ) : (
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                {repeatedStickers.map((sticker) => (
-                  <SharedStickerCard key={sticker.id} sticker={sticker} tone="repeated" />
-                ))}
-              </div>
-            )}
+          <div className="grid gap-6 lg:grid-cols-2">
+            <QuickSummaryCard
+              emptyText="No hay faltantes registrados en el álbum completo."
+              groups={allAlbumSummary.missing}
+              tone="missing"
+            />
+            <QuickSummaryCard
+              emptyText="No hay repetidas registradas en el álbum completo."
+              groups={allAlbumSummary.repeated}
+              tone="repeated"
+            />
           </div>
         </section>
       </div>
@@ -473,40 +388,46 @@ function StatCard({ label, value }: { label: string; value: number | string }) {
   );
 }
 
-function SharedStickerCard({
-  sticker,
+function QuickSummaryCard({
+  groups,
   tone,
+  emptyText,
 }: {
-  sticker: SharedSticker;
+  groups: QuickGroup[];
   tone: "missing" | "repeated";
+  emptyText: string;
 }) {
-  const toneClass =
-    tone === "missing"
-      ? "border-rose-200 bg-rose-50"
-      : "border-amber-200 bg-amber-50";
-
   return (
-    <div className={`rounded-3xl border p-4 ${toneClass}`}>
-      <div className="flex items-start justify-between gap-2">
+    <div
+      className={`rounded-[28px] border p-5 ${
+        tone === "missing"
+          ? "border-rose-200 bg-rose-50"
+          : "border-amber-200 bg-amber-50"
+      }`}
+    >
+      <div className="flex items-center justify-between gap-3">
         <div>
-          <div className="text-base font-semibold text-slate-950">{sticker.codigo}</div>
-          <div className="mt-1 text-xs uppercase tracking-[0.24em] text-slate-500">
-            {sticker.categoria ?? "General"}
+          <div className="text-xs uppercase tracking-[0.24em] text-slate-500">
+            {tone === "missing" ? "Me faltan" : "Repetidas"}
           </div>
+          <div className="mt-2 text-2xl font-semibold text-slate-950">{groups.length}</div>
         </div>
-        {tone === "repeated" ? (
-          <span className="rounded-full bg-amber-500 px-2.5 py-1 text-[11px] font-semibold uppercase text-white">
-            x{sticker.state.repetidas}
-          </span>
-        ) : (
-          <span className="rounded-full bg-rose-500 px-2.5 py-1 text-[11px] font-semibold uppercase text-white">
-            Falta
-          </span>
-        )}
+        <span
+          className={`rounded-full px-3 py-1 text-xs font-semibold uppercase ${
+            tone === "missing"
+              ? "bg-rose-500 text-white"
+              : "bg-amber-500 text-white"
+          }`}
+        >
+          {tone === "missing" ? "Lectura rápida" : "Intercambio"}
+        </span>
       </div>
-      <div className="mt-3 text-sm text-slate-700">
-        {sticker.nombre ?? "Figurita sin nombre cargado"}
-      </div>
+
+      {groups.length === 0 ? (
+        <EmptyShareState text={emptyText} />
+      ) : (
+        <QuickGroupList groups={groups} tone={tone} />
+      )}
     </div>
   );
 }
@@ -515,6 +436,46 @@ function EmptyShareState({ text }: { text: string }) {
   return (
     <div className="mt-5 rounded-3xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center text-sm text-slate-500">
       {text}
+    </div>
+  );
+}
+
+function QuickGroupList({
+  groups,
+  tone,
+}: {
+  groups: QuickGroup[];
+  tone: "missing" | "repeated";
+}) {
+  return (
+    <div className="mt-5 space-y-3">
+      {groups.map((group) => (
+        <div
+          key={group.key}
+          className={`rounded-2xl border px-4 py-3 ${
+            tone === "missing"
+              ? "border-rose-200 bg-white/80"
+              : "border-amber-200 bg-white/80"
+          }`}
+        >
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex items-center gap-2">
+              <span aria-hidden="true" className="text-lg">
+                {group.emoji}
+              </span>
+              <div>
+                <div className="text-sm font-semibold text-slate-950">
+                  {group.shortCode} {group.emoji}
+                </div>
+                <div className="text-xs text-slate-500">{group.title}</div>
+              </div>
+            </div>
+            <div className="font-mono text-sm text-slate-700 sm:text-right">
+              {group.numbers.join(", ")}
+            </div>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -537,3 +498,171 @@ function slugify(value: string) {
       .replace(/^-+|-+$/g, "") || "album"
   );
 }
+
+function buildQuickSummary(stickers: SharedSticker[]) {
+  const missing = new Map<string, QuickGroup>();
+  const repeated = new Map<string, QuickGroup>();
+
+  for (const sticker of stickers) {
+    const number = extractStickerNumber(sticker.codigo);
+    if (!number) {
+      continue;
+    }
+
+    const meta = resolveGroupMeta(sticker);
+    const target =
+      sticker.state.status === "missing"
+        ? missing
+        : sticker.state.status === "repeated"
+          ? repeated
+          : null;
+
+    if (!target) {
+      continue;
+    }
+
+    const existing = target.get(meta.key);
+    if (existing) {
+      existing.numbers.push(number);
+      continue;
+    }
+
+    target.set(meta.key, {
+      key: meta.key,
+      shortCode: meta.shortCode,
+      emoji: meta.emoji,
+      title: meta.title,
+      numbers: [number],
+    });
+  }
+
+  return {
+    missing: [...missing.values()],
+    repeated: [...repeated.values()],
+  };
+}
+
+function resolveGroupMeta(sticker: SharedSticker) {
+  const prefix = extractStickerPrefix(sticker.codigo);
+  const category = sticker.categoria ?? "General";
+  const countryName = extractCountryName(sticker.nombre);
+  const stickerName = sticker.nombre ?? "";
+
+  if (prefix === "FWC") {
+    if (
+      /world cup history/i.test(category) ||
+      /1934|1950|1954|1962|1974|1986|1994|2002|2006|2014|2022/i.test(stickerName)
+    ) {
+      return {
+        key: "FWC-history",
+        shortCode: "FWC",
+        emoji: "📜",
+        title: "World Cup History",
+      };
+    }
+
+    if (
+      /host countries|cities/i.test(category) ||
+      /canada|mexico|usa/i.test(stickerName)
+    ) {
+      return {
+        key: "FWC-hosts",
+        shortCode: "FWC",
+        emoji: "🌎",
+        title: "Host Countries & Cities",
+      };
+    }
+
+    return {
+      key: "FWC-main",
+      shortCode: "FWC",
+      emoji: "🏆",
+      title: "World Cup",
+    };
+  }
+
+  return {
+    key: prefix,
+    shortCode: prefix,
+    emoji: flagForCountryName(countryName),
+    title: countryName ?? category,
+  };
+}
+
+function extractStickerPrefix(code: string) {
+  const match = code.match(/^([A-Za-z]+)/);
+  return match?.[1]?.toUpperCase() ?? code.toUpperCase();
+}
+
+function extractStickerNumber(code: string) {
+  const match = code.match(/[A-Za-z]+(.+)$/);
+  return match?.[1]?.trim() ?? "";
+}
+
+function extractCountryName(name: string | null) {
+  if (!name) {
+    return null;
+  }
+
+  const parts = name.split(" - ");
+  return parts.length > 1 ? parts[parts.length - 1]?.trim() ?? null : null;
+}
+
+function flagForCountryName(countryName: string | null) {
+  if (!countryName) {
+    return "🏳️";
+  }
+
+  return COUNTRY_FLAGS[countryName] ?? COUNTRY_FLAGS[countryName.replace(/\./g, "")] ?? "🏳️";
+}
+
+const COUNTRY_FLAGS: Record<string, string> = {
+  Algeria: "🇩🇿",
+  Argentina: "🇦🇷",
+  Australia: "🇦🇺",
+  Austria: "🇦🇹",
+  Belgium: "🇧🇪",
+  "Bosnia and Herzegovina": "🇧🇦",
+  Brazil: "🇧🇷",
+  Canada: "🇨🇦",
+  "Cape Verde": "🇨🇻",
+  Colombia: "🇨🇴",
+  Croatia: "🇭🇷",
+  Curacao: "🇨🇼",
+  Czechia: "🇨🇿",
+  "DR Congo": "🇨🇩",
+  Ecuador: "🇪🇨",
+  Egypt: "🇪🇬",
+  England: "🏴",
+  France: "🇫🇷",
+  Germany: "🇩🇪",
+  Ghana: "🇬🇭",
+  Haiti: "🇭🇹",
+  Iran: "🇮🇷",
+  Iraq: "🇮🇶",
+  Japan: "🇯🇵",
+  Jordan: "🇯🇴",
+  Mexico: "🇲🇽",
+  Morocco: "🇲🇦",
+  Netherlands: "🇳🇱",
+  "New Zealand": "🇳🇿",
+  Norway: "🇳🇴",
+  Panama: "🇵🇦",
+  Paraguay: "🇵🇾",
+  Portugal: "🇵🇹",
+  Qatar: "🇶🇦",
+  "Saudi Arabia": "🇸🇦",
+  Scotland: "🏴",
+  Senegal: "🇸🇳",
+  "South Africa": "🇿🇦",
+  "South Korea": "🇰🇷",
+  Spain: "🇪🇸",
+  Sweden: "🇸🇪",
+  Switzerland: "🇨🇭",
+  Tunisia: "🇹🇳",
+  Turkey: "🇹🇷",
+  USA: "🇺🇸",
+  Uzbekistan: "🇺🇿",
+  "Côte d'Ivoire": "🇨🇮",
+  "Cote d'Ivoire": "🇨🇮",
+};
