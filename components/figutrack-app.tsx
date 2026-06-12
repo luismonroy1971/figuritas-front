@@ -240,6 +240,7 @@ export default function FiguTrackApp() {
     number | null
   >(null);
   const [adminStickers, setAdminStickers] = useState<StickerItem[]>([]);
+  const [adminStickerSearch, setAdminStickerSearch] = useState("");
   const [editingAlbumId, setEditingAlbumId] = useState<number | null>(null);
   const [editingStickerId, setEditingStickerId] = useState<number | null>(null);
   const [albumForm, setAlbumForm] = useState<AlbumForm>(emptyAlbumForm);
@@ -328,6 +329,18 @@ export default function FiguTrackApp() {
     () => adminAlbums.find((album) => album.id === adminSelectedAlbumId) ?? null,
     [adminAlbums, adminSelectedAlbumId],
   );
+
+  const filteredAdminStickers = useMemo(() => {
+    const normalizedSearch = adminStickerSearch.trim().toLowerCase();
+
+    if (!normalizedSearch) {
+      return adminStickers;
+    }
+
+    return adminStickers.filter((sticker) =>
+      sticker.codigo.toLowerCase().includes(normalizedSearch),
+    );
+  }, [adminStickerSearch, adminStickers]);
 
   const shareWhatsappUrl = useMemo(() => {
     if (!shareUrl || !control) {
@@ -1265,7 +1278,7 @@ export default function FiguTrackApp() {
 
   if (!user || !token) {
     return (
-      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_#1d4ed8,_#0f172a_55%)] text-white">
+      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,#1d4ed8,#0f172a_55%)] text-white">
         <div className="mx-auto flex min-h-screen max-w-7xl flex-col gap-10 px-6 py-10 lg:flex-row lg:items-center lg:justify-between">
           <section className="max-w-2xl space-y-8">
             <span className="inline-flex rounded-full border border-white/20 bg-white/10 px-4 py-1 text-sm text-blue-100 backdrop-blur">
@@ -1297,7 +1310,7 @@ export default function FiguTrackApp() {
             </div>
           </section>
 
-          <section className="w-full max-w-xl rounded-[32px] border border-white/15 bg-slate-950/60 p-6 shadow-2xl shadow-blue-950/40 backdrop-blur">
+          <section className="w-full max-w-xl rounded-4xl border border-white/15 bg-slate-950/60 p-6 shadow-2xl shadow-blue-950/40 backdrop-blur">
             <div className="flex rounded-2xl bg-white/5 p-1 text-sm">
               <button
                 className={tabClass(authMode === "login")}
@@ -1459,7 +1472,7 @@ export default function FiguTrackApp() {
 
   return (
     <main className="min-h-screen bg-slate-100 text-slate-900">
-      <div className="mx-auto flex min-h-screen max-w-[1600px] flex-col gap-6 px-4 py-4 lg:flex-row lg:px-6">
+      <div className="mx-auto flex min-h-screen max-w-400 flex-col gap-6 px-4 py-4 lg:flex-row lg:px-6">
         <aside className="w-full rounded-[28px] bg-slate-950 p-5 text-white shadow-2xl shadow-slate-300 lg:w-80">
           <div className="flex items-center justify-between">
             <div>
@@ -2518,8 +2531,42 @@ export default function FiguTrackApp() {
                           </div>
                         </form>
 
+                        <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                            <div>
+                              <div className="text-sm font-semibold text-slate-950">
+                                Filtrar por código
+                              </div>
+                              <p className="mt-1 text-sm text-slate-500">
+                                Escribe un prefijo o texto como `KSA`, `BRA` o `FWC`
+                                para ver solo esas figuritas.
+                              </p>
+                            </div>
+                            <div className="flex w-full max-w-xl flex-col gap-3 sm:flex-row">
+                              <input
+                                className={lightInputClass}
+                                onChange={(event) =>
+                                  setAdminStickerSearch(event.target.value)
+                                }
+                                placeholder="Ejemplo: KSA"
+                                type="search"
+                                value={adminStickerSearch}
+                              />
+                              {adminStickerSearch ? (
+                                <button
+                                  className={secondaryButtonClass}
+                                  onClick={() => setAdminStickerSearch("")}
+                                  type="button"
+                                >
+                                  Limpiar
+                                </button>
+                              ) : null}
+                            </div>
+                          </div>
+                        </div>
+
                         <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
-                          {adminStickers.map((sticker) => (
+                          {filteredAdminStickers.map((sticker) => (
                             <button
                               key={sticker.id}
                               className={`rounded-2xl border p-4 text-left transition ${
@@ -2549,6 +2596,16 @@ export default function FiguTrackApp() {
                             </button>
                           ))}
                         </div>
+                        {filteredAdminStickers.length === 0 ? (
+                          <EmptyState
+                            title="No hay figuritas para este filtro"
+                            description={
+                              adminStickerSearch
+                                ? "No existe ninguna figurita cuyo código coincida con esa búsqueda."
+                                : "Todavía no hay figuritas cargadas en este álbum."
+                            }
+                          />
+                        ) : null}
                       </div>
                     )}
                   </SectionCard>
@@ -2943,7 +3000,7 @@ function ProgressBar({ progress, tall = false }: { progress: number; tall?: bool
   return (
     <div className={`overflow-hidden rounded-full bg-slate-200 ${tall ? "h-4" : "h-3"}`}>
       <div
-        className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400"
+        className="h-full rounded-full bg-linear-to-r from-blue-500 to-cyan-400"
         style={{ width: `${Math.min(Math.max(progress, 0), 100)}%` }}
       />
     </div>
