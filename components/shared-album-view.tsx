@@ -201,10 +201,10 @@ export default function SharedAlbumView({
     return (
       <main className="min-h-screen bg-slate-100 px-4 py-10 text-slate-900">
         <div className="mx-auto max-w-6xl space-y-6">
-          <div className="h-40 animate-pulse rounded-[32px] bg-slate-200" />
+          <div className="h-40 animate-pulse rounded-4xl bg-slate-200" />
           <div className="grid gap-6 lg:grid-cols-2">
-            <div className="h-96 animate-pulse rounded-[32px] bg-slate-200" />
-            <div className="h-96 animate-pulse rounded-[32px] bg-slate-200" />
+            <div className="h-96 animate-pulse rounded-4xl bg-slate-200" />
+            <div className="h-96 animate-pulse rounded-4xl bg-slate-200" />
           </div>
         </div>
       </main>
@@ -214,7 +214,7 @@ export default function SharedAlbumView({
   if (error || !payload) {
     return (
       <main className="min-h-screen bg-slate-100 px-4 py-10 text-slate-900">
-        <div className="mx-auto max-w-3xl rounded-[32px] bg-white p-8 text-center shadow-sm">
+        <div className="mx-auto max-w-3xl rounded-4xl bg-white p-8 text-center shadow-sm">
           <div className="text-sm uppercase tracking-[0.24em] text-rose-500">
             Enlace no disponible
           </div>
@@ -240,7 +240,7 @@ export default function SharedAlbumView({
   return (
     <main className="min-h-screen bg-slate-100 px-4 py-10 text-slate-900">
       <div className="mx-auto max-w-6xl space-y-6">
-        <section className="overflow-hidden rounded-[32px] bg-slate-950 text-white shadow-2xl shadow-slate-300">
+        <section className="overflow-hidden rounded-4xl bg-slate-950 text-white shadow-2xl shadow-slate-300">
           <div className="grid gap-6 px-6 py-8 lg:grid-cols-[minmax(0,1fr)_320px] lg:px-8">
             <div>
               <div className="text-sm uppercase tracking-[0.24em] text-blue-200">
@@ -283,7 +283,7 @@ export default function SharedAlbumView({
               </div>
               <div className="mt-5 overflow-hidden rounded-full bg-white/10">
                 <div
-                  className="h-3 rounded-full bg-gradient-to-r from-blue-500 to-cyan-400"
+                  className="h-3 rounded-full bg-linear-to-r from-blue-500 to-cyan-400"
                   style={{ width: `${Math.min(Math.max(payload.progress.percentage, 0), 100)}%` }}
                 />
               </div>
@@ -291,7 +291,7 @@ export default function SharedAlbumView({
           </div>
         </section>
 
-        <section className="print-hidden rounded-[32px] bg-white p-6 shadow-sm">
+        <section className="print-hidden rounded-4xl bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h2 className="text-2xl font-semibold text-slate-950">Comparte esta vista</h2>
@@ -342,7 +342,7 @@ export default function SharedAlbumView({
           </div>
         </section>
 
-        <section className="rounded-[32px] bg-white p-6 shadow-sm">
+        <section className="rounded-4xl bg-white p-6 shadow-sm">
           <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <div className="text-sm uppercase tracking-[0.24em] text-blue-600">
@@ -513,6 +513,11 @@ function buildQuickSummary(stickers: SharedSticker[]) {
       continue;
     }
 
+    const displayNumber =
+      sticker.state.status === "repeated" && sticker.state.repetidas > 1
+        ? `${number} (${sticker.state.repetidas})`
+        : number;
+
     const meta = resolveGroupMeta(sticker);
     const target =
       sticker.state.status === "missing"
@@ -527,7 +532,7 @@ function buildQuickSummary(stickers: SharedSticker[]) {
 
     const existing = target.get(meta.key);
     if (existing) {
-      existing.numbers.push(number);
+      existing.numbers.push(displayNumber);
       continue;
     }
 
@@ -536,7 +541,7 @@ function buildQuickSummary(stickers: SharedSticker[]) {
       shortCode: meta.shortCode,
       emoji: meta.emoji,
       title: meta.title,
-      numbers: [number],
+      numbers: [displayNumber],
     });
   }
 
